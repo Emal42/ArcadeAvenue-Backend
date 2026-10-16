@@ -2,6 +2,9 @@ from fastapi import APIRouter, HTTPException
 
 from models.auth_models import LoginForm, RegisterForm, AuthResponse
 
+from database import test_collection
+
+
 auth_router = APIRouter()
 
 FAKE_USER_DB = {
@@ -61,3 +64,18 @@ def login_user(form: LoginForm):
         email=found_user["email"],
         account_type=found_user["account_type"]
     )
+
+from pydantic import BaseModel
+
+class TestAdd(BaseModel):
+    email: str
+    description: str
+
+@auth_router.post("/test_add")
+def test_add(data:TestAdd):
+
+    our_data_in_dictionary_format = data.model_dump();
+
+    test_collection.insert_one(our_data_in_dictionary_format)
+
+    print("testing adding an item")
