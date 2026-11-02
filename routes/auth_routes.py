@@ -1,103 +1,69 @@
-from fastapi import APIRouter, HTTPException
+import json
 
-from models.auth_models import LoginForm, RegisterForm, AuthResponse
+from fastapi import APIRouter, HTTPException 
+
+from database import users
+from models.auth_models import LoginForm, RegisterForm
 
 from pymongo.errors import DuplicateKeyError
 
-from database import test_collection
+# name this something sensible, usually same as name of the file 
+auth_router = APIRouter() 
 
 
-auth_router = APIRouter()
 
-FAKE_USER_DB = {
-    "Goober@gmail.com" : {
-        "email" : "Goober@gmail.com",
-        "password" : "test",
-        "account_type" : "buyer"
-    }
-}
 
-@auth_router.get("/test")
-def read_root():
-    return {"auth": "test"}
+@auth_router.get("/")
+def test_auth_router():
+    return {"status" : "works"}
+
+# GET function for requesting data
+# We don't need to provide any specifying information for this functionality
+@auth_router.get("/all")
+def get_all_users():
+    # get all users from database
+    result = users.find().to_list()
+    for user in result:
+        user["_id"] = str(user["_id"])
+    # result is a Cursor
+    print(result)
     
+    return{"all_users" : result}
 
-@auth_router.post("/Register", response_model=AuthResponse)
 
-    
-
+@auth_router.post("/register")
 def register_user(form: RegisterForm):
 
 
-    found_user = FAKE_USER_DB.get(form.email)
-    if(found_user):
-        raise HTTPException(
-            status_code=403,
-            detail="user with this email alredy exists"
-        )
-    user_dict = form.model_dump()
-
-    FAKE_USER_DB[form.email] = user_dict
-    print("new user database")
-    print(FAKE_USER_DB)
-
-    return AuthResponse(
-        email=form.email,
-        account_type=form.account_type
-    )
-
-@auth_router.post("/login", response_model=AuthResponse)
-def login_user(form: LoginForm):
-
-    found_user = FAKE_USER_DB.get(form.email)
-    if not (found_user):
-        raise HTTPException(
-            status_code=403,
-            detail="Invalid email"
-        )
-
-    if form.password != found_user["password"]:
-        raise HTTPException(
-            status_code=403,
-            detail="Invalid PASSWORD"
-        )
-
-    return AuthResponse(
-        email=found_user["email"],
-        account_type=found_user["account_type"]
-    )
-
-from pydantic import BaseModel
-
-class TestAdd(BaseModel):
-    email: str
-    description: str
-
-@auth_router.post("/test_add")
-def test_add(data:TestAdd):
-
-    our_data_in_dictionary_format = data.model_dump();
     try:
-        test_collection.insert_one(our_data_in_dictionary_format)
+        users.insert_one({
+            "email" : form.email,
+            "password" : form.password,
+            "account_type" : form.account_type
+        })
     except DuplicateKeyError:
         raise HTTPException(
-            status_code= 409,
-            detail="this email already exist"
+            status_code=409,
+            detail="Account already exists"
         )
-    print("testing adding an item")
 
-@auth_router.post("/test_field")
-def test_field(data: TestAdd):
+    
+    return {"status" : "success"}
 
-    result = test_collection.find_one({
-        "email" : data.email
-    })
-    if result is None:
+
+
+@auth_router.post("/login")
+def login(form: LoginForm):
+
+    found_user = users.find_one({"email" : form.email, "password" : form.password})
+
+    if found_user == None:
         raise HTTPException(
-            status_code= 404,
-            detail="item not found"
+            status_code=404,
+            detail="invalid credentials"
         )
-
-    print(result)
-
-    return "found item"
+    
+    return {
+        "email" : found_user["email"],
+        "account_type" : found_user["account_type"]
+    }
